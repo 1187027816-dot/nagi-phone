@@ -21,9 +21,11 @@
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/2.4.2/uicons-thin-straight/css/uicons-thin-straight.css">
   <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/2.4.2/uicons-regular-rounded/css/uicons-regular-rounded.css">
 
-  <!-- Dexie 多CDN备用加载 -->
+  <!-- Dexie 本地优先，多CDN备用加载 -->
+  <script src="js/vendor/dexie.min.js?v=4.4.3"></script>
   <script>
   (function() {
+    if (typeof Dexie !== 'undefined') return
     var cdns = [
       'https://cdn.jsdelivr.net/npm/dexie@4.4.3/dist/dexie.min.js',
       'https://unpkg.com/dexie@4.4.3/dist/dexie.min.js',

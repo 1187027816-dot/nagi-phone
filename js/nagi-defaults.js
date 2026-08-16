@@ -26,7 +26,17 @@
     }
   }
 
+  async function waitForDatabase() {
+    const startedAt = Date.now()
+    while (!window.db) {
+      if (Date.now() - startedAt > 20000) throw new Error('本地数据库尚未加载')
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    await db.open()
+  }
+
   async function seedNagiCharacters() {
+    await waitForDatabase()
     const seeded = await db.config.get(SEED_KEY)
     if (seeded && seeded.value === SEED_VERSION) return
 
