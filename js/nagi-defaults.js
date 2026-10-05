@@ -121,7 +121,79 @@
     if (typeof window.refreshCharCache === 'function') await window.refreshCharCache(shenId)
   }
 
+
+  // One-time import for the two XiaoE worldbooks.
+  // They are imported as unbound personal lorebooks so the user can mount them manually per chat.
+  const XIAOE_WORLDBOOK_SEED_KEY = 'nagi_seed_xiaoe_worldbooks_v1'
+  const XIAOE_WORLDBOOK_SEED_VERSION = 1
+
+  async function readSeedJSON(path) {
+    const response = await fetch(path + '?v=' + XIAOE_WORLDBOOK_SEED_VERSION)
+    if (!response.ok) throw new Error('无法读取世界书文件：' + path)
+    return response.json()
+  }
+
+  function convertImportedWorldbook(source, fallbackName, bookId) {
+    const rawEntries = Array.isArray(source?.entries)
+      ? source.entries
+      : Object.values(source?.entries || {})
+
+    return {
+      id: bookId,
+      name: source?.originalData?.name || fallbackName,
+      scope: 'personal',
+      charIds: [],
+      enabled: true,
+      entries: rawEntries.map((entry, index) => {
+        const order = Number(entry?.order)
+        return {
+          id: bookId + '-entry-' + String(entry?.uid ?? index),
+          title: String(entry?.comment || ('词条 ' + (index + 1))),
+          keywords: entry?.constant
+            ? []
+            : (Array.isArray(entry?.key) ? entry.key.filter(Boolean).map(String) : []),
+          enabled: entry?.disable !== true,
+          position: 'middle',
+          injectOrder: Number.isFinite(order) ? order : 100,
+          content: typeof entry?.content === 'string' ? entry.content : ''
+        }
+      })
+    }
+  }
+
+  async function seedXiaoeWorldbooks() {
+    await waitForDatabase()
+    const seeded = await db.config.get(XIAOE_WORLDBOOK_SEED_KEY)
+    if (seeded && seeded.value === XIAOE_WORLDBOOK_SEED_VERSION) return
+
+    const [itinerarySource, xiaoeSource] = await Promise.all([
+      readSeedJSON('data/行程世界书-小e.json'),
+      readSeedJSON('data/小e提示词v7.2(1).json')
+    ])
+
+    const importedBooks = [
+      convertImportedWorldbook(itinerarySource, '行程世界书-小e', 'nagi-worldbook-xiaoe-itinerary-v1'),
+      convertImportedWorldbook(xiaoeSource, '小e提示词v7.2', 'nagi-worldbook-xiaoe-v72-v1')
+    ]
+
+    const lorebookRow = await db.config.get('lorebooks')
+    const lorebooks = Array.isArray(lorebookRow?.value) ? lorebookRow.value : []
+
+    for (const book of importedBooks) {
+      const existingIndex = lorebooks.findIndex(item => item && item.id === book.id)
+      if (existingIndex >= 0) continue
+      lorebooks.push(book)
+    }
+
+    await db.config.put({ key: 'lorebooks', value: lorebooks })
+    await db.config.put({ key: XIAOE_WORLDBOOK_SEED_KEY, value: XIAOE_WORLDBOOK_SEED_VERSION })
+  }
+
   seedNagiCharacters().catch(error => {
     console.error('[nagi-defaults] 首次预设录入失败:', error)
+  })
+
+  seedXiaoeWorldbooks().catch(error => {
+    console.error('[nagi-defaults] 小e世界书导入失败:', error)
   })
 })()
